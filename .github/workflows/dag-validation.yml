@@ -10,6 +10,7 @@ on:
     branches: [main]
     paths:
       - 'airflow_home/dags/**'
+      - 'requirements.txt'
 
 env:
   AIRFLOW_VERSION: "2.6.2"
