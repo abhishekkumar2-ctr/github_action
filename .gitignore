@@ -1,0 +1,16 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Airflow local runtime files (never commit these)
+airflow_home/logs/
+airflow_home/airflow.db
+airflow_home/airflow.db-shm
+airflow_home/airflow.db-wal
+airflow_home/airflow-webserver.pid
+airflow_home_ci/
+
+# OS/editor junk
+.DS_Store
+.idea/

@@ -1,0 +1,10 @@
+# Add / edit this list to match the libraries your real DAGs import.
+# Find your actual imports locally with:
+#   grep -rhE "^import |^from " airflow_home/dags/*.py | sort -u
+#
+# Then check installed versions with:
+#   pip freeze | grep -iE "pandas|requests"
+#
+# Example pins below — replace with your project's real versions.
+pandas==2.0.3
+requests==2.31.0
