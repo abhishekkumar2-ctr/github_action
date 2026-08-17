@@ -1,7 +1,3 @@
-"""
-dag_1.py
-Simple example DAG using PythonOperator only (no external libs).
-"""
 from datetime import datetime, timedelta
 
 from airflow import DAG

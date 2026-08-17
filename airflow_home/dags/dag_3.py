@@ -9,9 +9,7 @@ from airflow.operators.python import PythonOperator
 
 
 def fetch_status():
-    # NOTE: kept offline-safe for CI (no real network call needed for validation).
-    # In production this might call: requests.get("https://api.example.com/health")
-    import requests  # proves 'requests' is available via requirements.txt
+    import requests 
     print(f"requests library loaded, version: {requests.__version__}")
 
 
@@ -39,8 +37,17 @@ with DAG(
     tags=["example", "etl", "requests"],
 ) as dag:
 
-    fetch_task = PythonOperator(task_id="fetch_status", python_callable=fetch_status)
-    transform_task = PythonOperator(task_id="transform", python_callable=transform)
-    load_task = PythonOperator(task_id="load", python_callable=load)
+    fetch_task = PythonOperator(
+        task_id="fetch_status", 
+        python_callable=fetch_status
+        )
+    transform_task = PythonOperator(
+        task_id="transform", 
+        python_callable=transform
+        )
+    load_task = PythonOperator(
+        task_id="load", 
+        python_callable=load
+        )
 
     fetch_task >> transform_task >> load_task
