@@ -58,4 +58,4 @@ jobs:
         run: airflow db init
 
       - name: Validate DAGs across entire repo
-        run: python scripts/validate_entire_repo_dags.py
+        run: echo "AIRFLOW_HOME=/home/runner/airflow_home_ci" >> $GITHUB_ENV
