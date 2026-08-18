@@ -1,4 +1,4 @@
-name: DAG Validation
+name: Validate DAGs in entire repo
 
 on:
   workflow_dispatch:
