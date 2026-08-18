@@ -1,4 +1,4 @@
-name: Validate entire repo dags
+name: DAG Validation
 
 on:
   workflow_dispatch:
@@ -51,11 +51,11 @@ jobs:
             pip install -r requirements.txt --constraint "${CONSTRAINT_URL}"
           fi
 
-      - name: Set AIRFLOW_HOME (isolated CI-only SQLite DB)
-        run: echo "AIRFLOW_HOME=${{ github.workspace }}/airflow_home_ci" >> $GITHUB_ENV
+      - name: Set AIRFLOW_HOME (isolated CI-only SQLite DB, outside repo)
+        run: echo "AIRFLOW_HOME=/home/runner/airflow_home_ci" >> $GITHUB_ENV
 
       - name: Initialize Airflow metadata DB
         run: airflow db init
 
       - name: Validate DAGs across entire repo
-        run: echo "AIRFLOW_HOME=/home/runner/airflow_home_ci" >> $GITHUB_ENV
+        run: python scripts/validate_entire_repo_dags.py
