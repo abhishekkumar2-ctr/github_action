@@ -15,7 +15,7 @@ default_args = {
 }
 
 with DAG(
-    dag_id="dag_1_hello_world",
+    dag_id="outer_dags",
     description="Hello world DAG",
     default_args=default_args,
     schedule_interval="@daily",
