@@ -135,4 +135,4 @@ jobs:
         run: airflow db init
 
       - name: Validate all Airflow DAGs across repo
-        run: python scripts/validate_three_layers.py
+        run: python scripts/validate_entire_repo_dags.py

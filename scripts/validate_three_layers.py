@@ -104,9 +104,15 @@ def check_imports(repo_root: Path) -> bool:
     # We care about bit 1 (fatal) and bit 2 (error).
 
     stdout = result.stdout.strip()
+    stderr = result.stderr.strip()
 
     if stdout:
         print(stdout)
+        print()
+
+    if stderr:
+        print("  [pylint stderr output]:")
+        print(stderr)
         print()
 
     has_errors = bool(result.returncode & 3)  # bits 0 (fatal) or 1 (error)
