@@ -1,0 +1,55 @@
+name: Full Repository Validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+env:
+  AIRFLOW_VERSION: "2.6.2"
+  PYTHON_VERSION: "3.9"
+
+jobs:
+  validate-repo:
+    name: Syntax + DAG Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-airflow-${{ env.AIRFLOW_VERSION }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-airflow-${{ env.AIRFLOW_VERSION }}-
+
+      - name: Install Airflow with official constraints
+        run: |
+          CONSTRAINT_URL="https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt"
+          pip install "apache-airflow==${AIRFLOW_VERSION}" --constraint "${CONSTRAINT_URL}"
+
+      - name: Install project requirements
+        run: |
+          CONSTRAINT_URL="https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt"
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt --constraint "${CONSTRAINT_URL}"
+          fi
+
+      - name: Compile-check all Python files
+        run: python -m compileall -q .
+
+      - name: Set AIRFLOW_HOME (isolated CI-only SQLite DB)
+        run: echo "AIRFLOW_HOME=/home/runner/airflow_home_ci" >> $GITHUB_ENV
+
+      - name: Initialize Airflow metadata DB
+        run: airflow db init
+
+      - name: Validate Airflow DAGs (DagBag import check)
+        run: python scripts/validate_full_repo.py
