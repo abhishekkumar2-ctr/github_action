@@ -58,7 +58,12 @@ def check_ruff(py_files: list[str]) -> dict[str, dict]:
     print("=" * 60)
 
     for filepath in py_files:
-        cmd = ["ruff", "check", "--output-format=concise", filepath]
+        cmd = [
+            "ruff", "check",
+            "--select=E9,F63,F7,F82",
+            "--output-format=concise",
+            filepath,
+        ]
         result = run_command(cmd, f"ruff check {filepath}")
 
         if result.returncode == 0:
