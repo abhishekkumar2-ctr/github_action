@@ -58,7 +58,7 @@ def check_ruff(py_files: list[str]) -> dict[str, dict]:
     print("=" * 60)
 
     for filepath in py_files:
-        cmd = ["ruff", "check", "--output-format=text", filepath]
+        cmd = ["ruff", "check", "--output-format=concise", filepath]
         result = run_command(cmd, f"ruff check {filepath}")
 
         if result.returncode == 0:
@@ -147,17 +147,17 @@ def check_dagbag(py_files: list[str]) -> dict[str, dict]:
 # Check 3 — SQLFluff (SQL syntax)
 # ---------------------------------------------------------------------------
 def check_sqlfluff(sql_files: list[str]) -> dict[str, dict]:
-    """Run sqlfluff lint on each changed SQL file."""
+    """Run sqlfluff parse on each changed SQL file (syntax check only, no style rules)."""
     results = {}
     if not sql_files:
         return results
 
     print("\n" + "=" * 60)
-    print("CHECK 3: SQLFluff — SQL Syntax Check")
+    print("CHECK 3: SQLFluff — SQL Syntax Check (parse only)")
     print("=" * 60)
 
     for filepath in sql_files:
-        cmd = ["sqlfluff", "lint", "--dialect", "mysql", filepath]
+        cmd = ["sqlfluff", "parse", "--dialect", "mysql", filepath]
         result = run_command(cmd, f"sqlfluff lint {filepath}")
 
         if result.returncode == 0:
