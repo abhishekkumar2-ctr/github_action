@@ -1,0 +1,131 @@
+name: PR Syntax & DAG Check
+
+on:
+  pull_request:
+    branches: [main]
+
+env:
+  AIRFLOW_VERSION: "2.6.2"
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  pr-syntax-check:
+    name: "Validate Changed .py & .sql Files"
+    runs-on: ubuntu-latest
+
+    steps:
+      # ------------------------------------------------------------------
+      # Step 1: Checkout repo with full git history (needed for diff)
+      # ------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ------------------------------------------------------------------
+      # Step 2: Setup Python 3.11
+      # ------------------------------------------------------------------
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # ------------------------------------------------------------------
+      # Step 3: Detect changed .py and .sql files in the PR
+      # ------------------------------------------------------------------
+      - name: Get changed Python files
+        id: changed-py
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            **/*.py
+
+      - name: Get changed SQL files
+        id: changed-sql
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            **/*.sql
+
+      # ------------------------------------------------------------------
+      # Step 4: Show changed files (for debugging / transparency)
+      # ------------------------------------------------------------------
+      - name: Display changed files
+        run: |
+          echo "=== Changed Python files ==="
+          echo "${{ steps.changed-py.outputs.all_changed_files }}"
+          echo ""
+          echo "=== Changed SQL files ==="
+          echo "${{ steps.changed-sql.outputs.all_changed_files }}"
+          echo ""
+          echo "Python files changed: ${{ steps.changed-py.outputs.any_changed }}"
+          echo "SQL files changed: ${{ steps.changed-sql.outputs.any_changed }}"
+
+      # ------------------------------------------------------------------
+      # Step 5: Cache pip dependencies for faster runs
+      # ------------------------------------------------------------------
+      - name: Cache pip dependencies
+        if: steps.changed-py.outputs.any_changed == 'true' || steps.changed-sql.outputs.any_changed == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-pr-check-${{ env.AIRFLOW_VERSION }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-pr-check-${{ env.AIRFLOW_VERSION }}-
+
+      # ------------------------------------------------------------------
+      # Step 6: Install dependencies
+      # ------------------------------------------------------------------
+      - name: Install Airflow with official constraints
+        if: steps.changed-py.outputs.any_changed == 'true' || steps.changed-sql.outputs.any_changed == 'true'
+        run: |
+          CONSTRAINT_URL="https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt"
+          pip install "apache-airflow==${AIRFLOW_VERSION}" --constraint "${CONSTRAINT_URL}"
+
+      - name: Install project requirements
+        if: steps.changed-py.outputs.any_changed == 'true' || steps.changed-sql.outputs.any_changed == 'true'
+        run: |
+          CONSTRAINT_URL="https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt"
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt --constraint "${CONSTRAINT_URL}"
+          fi
+
+      - name: Install Ruff and SQLFluff
+        if: steps.changed-py.outputs.any_changed == 'true' || steps.changed-sql.outputs.any_changed == 'true'
+        run: pip install ruff sqlfluff
+
+      # ------------------------------------------------------------------
+      # Step 7: Initialize Airflow DB (needed for DAGBag test)
+      # ------------------------------------------------------------------
+      - name: Set AIRFLOW_HOME
+        if: steps.changed-py.outputs.any_changed == 'true'
+        run: echo "AIRFLOW_HOME=/home/runner/airflow_home_ci" >> $GITHUB_ENV
+
+      - name: Initialize Airflow metadata DB
+        if: steps.changed-py.outputs.any_changed == 'true'
+        run: airflow db init
+
+      # ------------------------------------------------------------------
+      # Step 8: Run validation on changed files only
+      # ------------------------------------------------------------------
+      - name: Validate changed files
+        if: steps.changed-py.outputs.any_changed == 'true' || steps.changed-sql.outputs.any_changed == 'true'
+        run: |
+          python scripts/pr_validate_changed_files.py \
+            --py-files "${{ steps.changed-py.outputs.all_changed_files }}" \
+            --sql-files "${{ steps.changed-sql.outputs.all_changed_files }}" \
+            --summary-file "$GITHUB_STEP_SUMMARY"
+
+      # ------------------------------------------------------------------
+      # Step 9: Skip message if no relevant files changed
+      # ------------------------------------------------------------------
+      - name: No relevant files changed
+        if: steps.changed-py.outputs.any_changed != 'true' && steps.changed-sql.outputs.any_changed != 'true'
+        run: |
+          echo "## PR Syntax & DAG Check Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> No \`.py\` or \`.sql\` files were changed in this PR." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Result: SKIPPED (No relevant files to check)" >> $GITHUB_STEP_SUMMARY
+          echo ""
+          echo "No .py or .sql files changed — nothing to validate."
