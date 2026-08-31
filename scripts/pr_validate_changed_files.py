@@ -41,17 +41,7 @@ def check_compileall(py_files: list[str]) -> dict[str, dict]:
     print("=" * 60)
 
     for filepath in py_files:
-<<<<<<< HEAD
-        cmd = [
-            "ruff", "check",
-            "--select=E9,F63,F7,F82",
-            "--output-format=concise",
-            filepath,
-        ]
-        result = run_command(cmd, f"ruff check {filepath}")
-=======
         print(f"\n  Compiling: {filepath}")
->>>>>>> f447a42 (use normal py compiler)
 
         # compileall.compile_file returns True if compilation succeeds
         success = compileall.compile_file(
@@ -157,28 +147,16 @@ def check_dagbag(py_files: list[str]) -> dict[str, dict]:
 # Check 3 — SQLFluff (Hive SQL syntax)
 # ---------------------------------------------------------------------------
 def check_sqlfluff(sql_files: list[str]) -> dict[str, dict]:
-<<<<<<< HEAD
-    """Run sqlfluff parse on each changed SQL file (syntax check only, no style rules)."""
-=======
     """Run sqlfluff parse on each changed SQL file (Hive dialect, syntax only).
 
     Uses 'parse' mode instead of 'lint' to check only SQL syntax errors,
     not style/formatting rules like indentation or trailing newlines.
     """
->>>>>>> f447a42 (use normal py compiler)
     results = {}
     if not sql_files:
         return results
 
     print("\n" + "=" * 60)
-<<<<<<< HEAD
-    print("CHECK 3: SQLFluff — SQL Syntax Check (parse only)")
-    print("=" * 60)
-
-    for filepath in sql_files:
-        cmd = ["sqlfluff", "parse", "--dialect", "mysql", filepath]
-        result = run_command(cmd, f"sqlfluff lint {filepath}")
-=======
     print("CHECK 3: SQLFluff — Hive SQL Syntax Check (parse only)")
     print("=" * 60)
 
@@ -193,7 +171,6 @@ def check_sqlfluff(sql_files: list[str]) -> dict[str, dict]:
             print(result.stdout)
         if result.stderr:
             print(result.stderr)
->>>>>>> f447a42 (use normal py compiler)
 
         if result.returncode == 0:
             results[filepath] = {"status": "PASS", "details": "No issues found"}
@@ -222,15 +199,11 @@ def generate_report(
     lines = []
     all_passed = True
 
-    lines.append("## PR Syntax & DAG Check Report\n")
+    lines.append("## 📋 PR Syntax & DAG Check Report\n")
 
     # --- Python: compileall ---
     if py_files:
-<<<<<<< HEAD
-        lines.append("### Python Files — Ruff (Syntax & Linting)\n")
-=======
-        lines.append("###  Python Files — compileall (Syntax Check)\n")
->>>>>>> f447a42 (use normal py compiler)
+        lines.append("### 🐍 Python Files — compileall (Syntax Check)\n")
         lines.append("| File | Status | Details |")
         lines.append("|:-----|:------:|:--------|")
         for f in py_files:
@@ -243,7 +216,7 @@ def generate_report(
 
     # --- Python: DAGBag ---
     if py_files:
-        lines.append("### Python Files — Airflow DAGBag (Integrity)\n")
+        lines.append("### 🐍 Python Files — Airflow DAGBag (Integrity)\n")
         lines.append("| File | Status | Details |")
         lines.append("|:-----|:------:|:--------|")
         for f in py_files:
@@ -256,11 +229,7 @@ def generate_report(
 
     # --- SQL: SQLFluff ---
     if sql_files:
-<<<<<<< HEAD
-        lines.append("### SQL Files — SQLFluff (Syntax)\n")
-=======
         lines.append("### 🗄️ SQL Files — SQLFluff Hive (Syntax)\n")
->>>>>>> f447a42 (use normal py compiler)
         lines.append("| File | Status | Details |")
         lines.append("|:-----|:------:|:--------|")
         for f in sql_files:
