@@ -148,7 +148,7 @@ def check_sqlfluff(sql_files: list[str]) -> dict[str, dict]:
     print("=" * 60)
 
     for filepath in sql_files:
-        cmd = ["sqlfluff", "parse", "--dialect", "mysql", filepath]
+        cmd = ["sqlfluff", "parse", "--dialect", "hive", filepath]
         result = run_command(cmd, f"sqlfluff lint {filepath}")
 
         if result.returncode == 0:
