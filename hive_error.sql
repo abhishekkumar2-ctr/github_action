@@ -1,8 +1,8 @@
 SET hive.exec.dynamic.partition = true;
 
-INSRT OVERWRITE TABLE finance_analytics.daily_revenue
+INSERT OVERWRITE TABLE finance_analytics.daily_revenue
 PARTITION (dt)
-SELCT
+SELECT
     order_id,
     customer_id,
     SUM(order_amount) AS total_amount,
