@@ -1,17 +1,3 @@
-"""
-PR Changed Files Validator
-==========================
-Validates only the files changed in a Pull Request.
-- Python (.py) files: Ruff linting + Airflow DAGBag integrity test
-- SQL (.sql) files:   SQLFluff syntax linting
-
-Usage:
-    python scripts/pr_validate_changed_files.py \
-        --py-files "file1.py file2.py" \
-        --sql-files "file1.sql file2.sql" \
-        --summary-file "$GITHUB_STEP_SUMMARY"
-"""
-
 import argparse
 import os
 import subprocess
@@ -192,11 +178,11 @@ def generate_report(
     lines = []
     all_passed = True
 
-    lines.append("## 📋 PR Syntax & DAG Check Report\n")
+    lines.append("## PR Syntax & DAG Check Report\n")
 
     # --- Python: Ruff ---
     if py_files:
-        lines.append("### 🐍 Python Files — Ruff (Syntax & Linting)\n")
+        lines.append("### Python Files — Ruff (Syntax & Linting)\n")
         lines.append("| File | Status | Details |")
         lines.append("|:-----|:------:|:--------|")
         for f in py_files:
@@ -209,7 +195,7 @@ def generate_report(
 
     # --- Python: DAGBag ---
     if py_files:
-        lines.append("### 🐍 Python Files — Airflow DAGBag (Integrity)\n")
+        lines.append("### Python Files — Airflow DAGBag (Integrity)\n")
         lines.append("| File | Status | Details |")
         lines.append("|:-----|:------:|:--------|")
         for f in py_files:
@@ -222,7 +208,7 @@ def generate_report(
 
     # --- SQL: SQLFluff ---
     if sql_files:
-        lines.append("### 🗄️ SQL Files — SQLFluff (Syntax)\n")
+        lines.append("### SQL Files — SQLFluff (Syntax)\n")
         lines.append("| File | Status | Details |")
         lines.append("|:-----|:------:|:--------|")
         for f in sql_files:
