@@ -1,4 +1,5 @@
 import argparse
+import compileall
 import os
 import subprocess
 import sys
@@ -18,32 +19,29 @@ def parse_file_list(file_string: str) -> list[str]:
     return [f for f in files if Path(f).exists()]
 
 
-def run_command(cmd: list[str], description: str) -> subprocess.CompletedProcess:
-    """Run a shell command and return the result."""
-    print(f"\n  Running: {description}")
-    print(f"  Command: {' '.join(cmd)}\n")
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.stdout:
-        print(result.stdout)
-    if result.stderr:
-        print(result.stderr)
-    return result
-
-
 # ---------------------------------------------------------------------------
-# Check 1 — Ruff (Python syntax + linting)
+# Check 1 — compileall (Python syntax check)
 # ---------------------------------------------------------------------------
-def check_ruff(py_files: list[str]) -> dict[str, dict]:
-    """Run ruff check on each changed Python file."""
+def check_compileall(py_files: list[str]) -> dict[str, dict]:
+    """Compile each changed Python file to bytecode to catch syntax errors.
+
+    Uses `compileall.compile_file()` which catches:
+    - SyntaxError
+    - IndentationError
+    - TabError
+    - Invalid tokens
+    Does NOT execute any code — completely safe.
+    """
     results = {}
     if not py_files:
         return results
 
     print("=" * 60)
-    print("CHECK 1: Ruff — Python Syntax & Linting")
+    print("CHECK 1: compileall — Python Syntax Check")
     print("=" * 60)
 
     for filepath in py_files:
+<<<<<<< HEAD
         cmd = [
             "ruff", "check",
             "--select=E9,F63,F7,F82",
@@ -51,16 +49,31 @@ def check_ruff(py_files: list[str]) -> dict[str, dict]:
             filepath,
         ]
         result = run_command(cmd, f"ruff check {filepath}")
+=======
+        print(f"\n  Compiling: {filepath}")
+>>>>>>> f447a42 (use normal py compiler)
 
-        if result.returncode == 0:
-            results[filepath] = {"status": "PASS", "details": "No issues found"}
+        # compileall.compile_file returns True if compilation succeeds
+        success = compileall.compile_file(
+            filepath,
+            quiet=2,    # quiet=2: suppress all output (we handle it ourselves)
+            force=True,  # recompile even if .pyc is fresh
+        )
+
+        if success:
+            results[filepath] = {"status": "PASS", "details": "Syntax OK — compiled successfully"}
             print(f" {filepath} — PASS")
         else:
-            error_output = (result.stdout or result.stderr or "Unknown error").strip()
-            # Take first 200 chars to keep report clean
-            short_error = error_output[:200].replace("\n", " ").replace("|", "\\|")
-            results[filepath] = {"status": "FAIL", "details": short_error}
-            print(f" {filepath} — FAIL")
+            # To capture the actual error message, use py_compile
+            import py_compile
+            try:
+                py_compile.compile(filepath, doraise=True)
+                # If we get here, it somehow passed (shouldn't happen)
+                results[filepath] = {"status": "PASS", "details": "Syntax OK"}
+            except py_compile.PyCompileError as e:
+                error_msg = str(e)[:200].replace("\n", " ").replace("|", "\\|")
+                results[filepath] = {"status": "FAIL", "details": error_msg}
+                print(f" {filepath} — FAIL: {error_msg}")
 
     return results
 
@@ -69,7 +82,12 @@ def check_ruff(py_files: list[str]) -> dict[str, dict]:
 # Check 2 — Airflow DAGBag (DAG integrity)
 # ---------------------------------------------------------------------------
 def check_dagbag(py_files: list[str]) -> dict[str, dict]:
-    """Load changed Python files through Airflow DagBag to validate DAGs."""
+    """Load changed Python files through Airflow DagBag to validate DAGs.
+
+    Catches: ImportError, ModuleNotFoundError, invalid DAG configuration,
+    broken operators, circular imports, duplicate task_id, cyclic dependencies
+    — anything that fails at DAG load time.
+    """
     results = {}
     if not py_files:
         return results
@@ -102,7 +120,8 @@ def check_dagbag(py_files: list[str]) -> dict[str, dict]:
 
         # Check if this specific file had import errors
         file_errors = {
-            k: v for k, v in dagbag.import_errors.items() if Path(k).resolve() == Path(abs_path).resolve()
+            k: v for k, v in dagbag.import_errors.items()
+            if Path(k).resolve() == Path(abs_path).resolve()
         }
 
         if file_errors:
@@ -135,21 +154,46 @@ def check_dagbag(py_files: list[str]) -> dict[str, dict]:
 
 
 # ---------------------------------------------------------------------------
-# Check 3 — SQLFluff (SQL syntax)
+# Check 3 — SQLFluff (Hive SQL syntax)
 # ---------------------------------------------------------------------------
 def check_sqlfluff(sql_files: list[str]) -> dict[str, dict]:
+<<<<<<< HEAD
     """Run sqlfluff parse on each changed SQL file (syntax check only, no style rules)."""
+=======
+    """Run sqlfluff parse on each changed SQL file (Hive dialect, syntax only).
+
+    Uses 'parse' mode instead of 'lint' to check only SQL syntax errors,
+    not style/formatting rules like indentation or trailing newlines.
+    """
+>>>>>>> f447a42 (use normal py compiler)
     results = {}
     if not sql_files:
         return results
 
     print("\n" + "=" * 60)
+<<<<<<< HEAD
     print("CHECK 3: SQLFluff — SQL Syntax Check (parse only)")
     print("=" * 60)
 
     for filepath in sql_files:
         cmd = ["sqlfluff", "parse", "--dialect", "mysql", filepath]
         result = run_command(cmd, f"sqlfluff lint {filepath}")
+=======
+    print("CHECK 3: SQLFluff — Hive SQL Syntax Check (parse only)")
+    print("=" * 60)
+
+    for filepath in sql_files:
+        print(f"\n  Parsing: {filepath}")
+        cmd = ["sqlfluff", "parse", "--dialect", "hive", filepath]
+        print(f"  Command: {' '.join(cmd)}\n")
+
+        result = subprocess.run(cmd, capture_output=True, text=True)
+
+        if result.stdout:
+            print(result.stdout)
+        if result.stderr:
+            print(result.stderr)
+>>>>>>> f447a42 (use normal py compiler)
 
         if result.returncode == 0:
             results[filepath] = {"status": "PASS", "details": "No issues found"}
@@ -167,7 +211,7 @@ def check_sqlfluff(sql_files: list[str]) -> dict[str, dict]:
 # Report Generator
 # ---------------------------------------------------------------------------
 def generate_report(
-    ruff_results: dict,
+    compileall_results: dict,
     dagbag_results: dict,
     sqlfluff_results: dict,
     py_files: list[str],
@@ -180,13 +224,17 @@ def generate_report(
 
     lines.append("## PR Syntax & DAG Check Report\n")
 
-    # --- Python: Ruff ---
+    # --- Python: compileall ---
     if py_files:
+<<<<<<< HEAD
         lines.append("### Python Files — Ruff (Syntax & Linting)\n")
+=======
+        lines.append("###  Python Files — compileall (Syntax Check)\n")
+>>>>>>> f447a42 (use normal py compiler)
         lines.append("| File | Status | Details |")
         lines.append("|:-----|:------:|:--------|")
         for f in py_files:
-            r = ruff_results.get(f, {"status": "SKIP", "details": "Not checked"})
+            r = compileall_results.get(f, {"status": "SKIP", "details": "Not checked"})
             icon = "✅" if r["status"] == "PASS" else ("⚠️" if r["status"] == "SKIP" else "❌")
             if r["status"] == "FAIL":
                 all_passed = False
@@ -208,7 +256,11 @@ def generate_report(
 
     # --- SQL: SQLFluff ---
     if sql_files:
+<<<<<<< HEAD
         lines.append("### SQL Files — SQLFluff (Syntax)\n")
+=======
+        lines.append("### 🗄️ SQL Files — SQLFluff Hive (Syntax)\n")
+>>>>>>> f447a42 (use normal py compiler)
         lines.append("| File | Status | Details |")
         lines.append("|:-----|:------:|:--------|")
         for f in sql_files:
@@ -221,16 +273,16 @@ def generate_report(
 
     # --- No files case ---
     if not py_files and not sql_files:
-        lines.append("> No `.py` or `.sql` files were changed in this PR.\n")
-        lines.append("### Result: SKIPPED (No relevant files to check)\n")
+        lines.append("> ℹ️ No `.py` or `.sql` files were changed in this PR.\n")
+        lines.append("### Result: ✅ SKIPPED (No relevant files to check)\n")
         return "\n".join(lines), True
 
     # --- Overall result ---
     lines.append("---\n")
     if all_passed:
-        lines.append("### Result: ALL CHECKS PASSED — Ready to Merge\n")
+        lines.append("### Result: ✅ ALL CHECKS PASSED — Ready to Merge\n")
     else:
-        lines.append("### Result: CHECKS FAILED — Please fix the errors above\n")
+        lines.append("### Result: ❌ CHECKS FAILED — Please fix the errors above\n")
 
     return "\n".join(lines), all_passed
 
@@ -272,14 +324,14 @@ def main() -> None:
     if not py_files and not sql_files:
         print("\n  No .py or .sql files changed in this PR. Nothing to validate.\n")
 
-    # Run all 3 checks
-    ruff_results = check_ruff(py_files)
+    # Run all 3 checks (run all even if earlier ones fail, so developer sees all errors)
+    compileall_results = check_compileall(py_files)
     dagbag_results = check_dagbag(py_files)
     sqlfluff_results = check_sqlfluff(sql_files)
 
     # Generate report
     report, all_passed = generate_report(
-        ruff_results, dagbag_results, sqlfluff_results, py_files, sql_files
+        compileall_results, dagbag_results, sqlfluff_results, py_files, sql_files
     )
 
     # Print report to console
@@ -293,14 +345,14 @@ def main() -> None:
     if summary_path:
         with open(summary_path, "a") as f:
             f.write(report)
-        print(f"\n Report written to: {summary_path}")
+        print(f"\n  📝 Report written to: {summary_path}")
 
     # Exit with appropriate code
     if all_passed:
-        print("\n All checks passed!\n")
+        print("\n  ✅ All checks passed!\n")
         sys.exit(0)
     else:
-        print("\n One or more checks failed. See report above.\n")
+        print("\n  ❌ One or more checks failed. See report above.\n")
         sys.exit(1)
 
 

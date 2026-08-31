@@ -74,7 +74,7 @@ jobs:
             ${{ runner.os }}-pip-pr-check-${{ env.AIRFLOW_VERSION }}-
 
       # ------------------------------------------------------------------
-      # Step 6: Install dependencies
+      # Step 6: Install dependencies (compileall is built-in, no Ruff needed)
       # ------------------------------------------------------------------
       - name: Install Airflow with official constraints
         if: steps.changed-py.outputs.any_changed == 'true' || steps.changed-sql.outputs.any_changed == 'true'
@@ -90,9 +90,9 @@ jobs:
             pip install -r requirements.txt --constraint "${CONSTRAINT_URL}"
           fi
 
-      - name: Install Ruff and SQLFluff
+      - name: Install SQLFluff
         if: steps.changed-py.outputs.any_changed == 'true' || steps.changed-sql.outputs.any_changed == 'true'
-        run: pip install ruff sqlfluff
+        run: pip install sqlfluff
 
       # ------------------------------------------------------------------
       # Step 7: Initialize Airflow DB (needed for DAGBag test)

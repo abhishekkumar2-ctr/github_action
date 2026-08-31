@@ -1,10 +1,4 @@
 [sqlfluff]
-dialect = mysql
+dialect = hive
 max_line_length = 200
 large_file_skip_byte_limit = 0
-
-[sqlfluff:rules:capitalisation.keywords]
-capitalisation_policy = upper
-
-[sqlfluff:rules:capitalisation.functions]
-capitalisation_policy = upper
