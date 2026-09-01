@@ -89,7 +89,7 @@ and po.supplier=pr.supplier;
 
 
 
-drop table if exists data_models_temp_tables.aknamed_api_net_sales
+drop table if exists data_models_temp_tables.aknamed_api_net_sales;
 create table data_models_temp_tables.aknamed_api_net_sales as
 select 
 coalesce(sr.dt,si.dt) as dt,
