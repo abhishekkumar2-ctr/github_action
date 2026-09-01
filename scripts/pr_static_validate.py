@@ -1,21 +1,3 @@
-"""
-PR Static Validator
-====================
-Validates changed Python and SQL files in a Pull Request using static analysis.
-No external runtime dependencies or Airflow installations are required.
-
-Checks:
-1. Python syntax compilation (compileall)
-2. Airflow DAG structure and duplicate task validation (ast)
-3. Hive SQL syntax validation (sqlfluff parse)
-
-Usage:
-    python scripts/pr_static_validate.py \
-        --py-files "file1.py file2.py" \
-        --sql-files "file1.sql file2.sql" \
-        --summary-file "$GITHUB_STEP_SUMMARY"
-"""
-
 import argparse
 import ast
 import compileall
