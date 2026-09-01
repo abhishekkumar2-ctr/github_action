@@ -174,7 +174,7 @@ classification,
 company_division,
 primary_account_owner,
 secondary_account_owner,
-category_type,
+category_type
 sub_category,
 sum(net_amount) as return_value
 from
