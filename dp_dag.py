@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, time, date
 from airflow.operators.python import PythonOperator
 from airflow import DAG
 from airflow.operators.dummy import DummyOperator
-from google_chat_callbacks import task_fail_alert, task_success_alert
+# from google_chat_callbacks import task_fail_alert, task_success_alert
 from airflow.providers.google.cloud.sensors.gcs import GCSObjectExistenceSensor as GoogleCloudStorageObjectSensor
 from airflow.operators.bash_operator import BashOperator
 ENVR = 'PROD'
@@ -16,8 +16,8 @@ from control_tower_mtd_prev_day_mail import email_sent as control_tower_mail
 
 dag_params = {
     'start_date': pendulum.datetime(2024, 3, 21, tz="Asia/Kolkata"),
-    'on_failure_callback': task_fail_alert if ENVR == 'PROD' else None,
-    'on_success_callback': task_success_alert if ENVR == 'PROD' else None,
+    # 'on_failure_callback': task_fail_alert if ENVR == 'PROD' else None,
+    # 'on_success_callback': task_success_alert if ENVR == 'PROD' else None,
     'retries': 5,
     'owner': 'bhuvan.ram@pharmeasy.in',
     'retry_delay': timedelta(minutes=5),
