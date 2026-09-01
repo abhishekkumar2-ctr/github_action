@@ -1,0 +1,77 @@
+name: PR Static Validation
+
+on:
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  pr-static-check:
+    name: "Validate Changed Files"
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout repository with full history for git diff
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Step 2: Set up Python environment
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # Step 3: Detect changed Python and SQL files in the pull request
+      - name: Get changed Python files
+        id: changed-py
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            **/*.py
+
+      - name: Get changed SQL files
+        id: changed-sql
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            **/*.sql
+
+      # Step 4: Display changed files in workflow logs
+      - name: Display changed files
+        run: |
+          echo "=== Changed Python files ==="
+          echo "${{ steps.changed-py.outputs.all_changed_files }}"
+          echo ""
+          echo "=== Changed SQL files ==="
+          echo "${{ steps.changed-sql.outputs.all_changed_files }}"
+          echo ""
+          echo "Python files changed: ${{ steps.changed-py.outputs.any_changed }}"
+          echo "SQL files changed: ${{ steps.changed-sql.outputs.any_changed }}"
+
+      # Step 5: Install SQLFluff only when SQL files are modified
+      - name: Install SQLFluff
+        if: steps.changed-sql.outputs.any_changed == 'true'
+        run: pip install sqlfluff
+
+      # Step 6: Execute static validation script
+      - name: Validate changed files
+        if: steps.changed-py.outputs.any_changed == 'true' || steps.changed-sql.outputs.any_changed == 'true'
+        run: |
+          python scripts/pr_static_validate.py \
+            --py-files "${{ steps.changed-py.outputs.all_changed_files }}" \
+            --sql-files "${{ steps.changed-sql.outputs.all_changed_files }}" \
+            --summary-file "$GITHUB_STEP_SUMMARY"
+
+      # Step 7: Post skip summary if no relevant files changed
+      - name: No relevant files changed
+        if: steps.changed-py.outputs.any_changed != 'true' && steps.changed-sql.outputs.any_changed != 'true'
+        run: |
+          echo "## PR Static Validation Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> No .py or .sql files were changed in this PR." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Result: SKIPPED (No relevant files to check)" >> $GITHUB_STEP_SUMMARY

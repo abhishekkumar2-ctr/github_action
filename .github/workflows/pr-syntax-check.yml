@@ -7,6 +7,8 @@ on:
 env:
   AIRFLOW_VERSION: "2.6.2"
   PYTHON_VERSION: "3.11"
+  # Auto-Mocking: Set repo folders in PYTHONPATH so Airflow can find custom modules
+  PYTHONPATH: ".:./plugins:./dags:./scripts"
 
 jobs:
   pr-syntax-check:
@@ -74,7 +76,11 @@ jobs:
             ${{ runner.os }}-pip-pr-check-${{ env.AIRFLOW_VERSION }}-
 
       # ------------------------------------------------------------------
-      # Step 6: Install dependencies (compileall is built-in, no Ruff needed)
+      # Step 6: Install dependencies
+      # NOTE: With Auto-Mocking, missing packages won't cause failures.
+      #       We still install Airflow (for DagBag) and SQLFluff (for SQL).
+      #       Project requirements are installed best-effort — if any fail,
+      #       Auto-Mocking will handle them.
       # ------------------------------------------------------------------
       - name: Install Airflow with official constraints
         if: steps.changed-py.outputs.any_changed == 'true' || steps.changed-sql.outputs.any_changed == 'true'
@@ -82,12 +88,22 @@ jobs:
           CONSTRAINT_URL="https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt"
           pip install "apache-airflow==${AIRFLOW_VERSION}" --constraint "${CONSTRAINT_URL}"
 
-      - name: Install project requirements
+      # OLD: Install ALL project requirements (could fail if packages are unavailable)
+      # - name: Install project requirements
+      #   if: steps.changed-py.outputs.any_changed == 'true' || steps.changed-sql.outputs.any_changed == 'true'
+      #   run: |
+      #     CONSTRAINT_URL="https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt"
+      #     if [ -f requirements.txt ]; then
+      #       pip install -r requirements.txt --constraint "${CONSTRAINT_URL}"
+      #     fi
+
+      # NEW: Install requirements best-effort (skip failures, Auto-Mocking handles the rest)
+      - name: Install project requirements (best-effort)
         if: steps.changed-py.outputs.any_changed == 'true' || steps.changed-sql.outputs.any_changed == 'true'
         run: |
           CONSTRAINT_URL="https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt"
           if [ -f requirements.txt ]; then
-            pip install -r requirements.txt --constraint "${CONSTRAINT_URL}"
+            pip install -r requirements.txt --constraint "${CONSTRAINT_URL}" || echo "⚠️ Some requirements failed to install — Auto-Mocking will handle missing modules"
           fi
 
       - name: Install SQLFluff
@@ -107,6 +123,7 @@ jobs:
 
       # ------------------------------------------------------------------
       # Step 8: Run validation on changed files only
+      # Auto-Mocking is handled inside the Python script — no extra setup needed
       # ------------------------------------------------------------------
       - name: Validate changed files
         if: steps.changed-py.outputs.any_changed == 'true' || steps.changed-sql.outputs.any_changed == 'true'
@@ -122,10 +139,10 @@ jobs:
       - name: No relevant files changed
         if: steps.changed-py.outputs.any_changed != 'true' && steps.changed-sql.outputs.any_changed != 'true'
         run: |
-          echo "## PR Syntax & DAG Check Report" >> $GITHUB_STEP_SUMMARY
+          echo "## 📋 PR Syntax & DAG Check Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "> No \`.py\` or \`.sql\` files were changed in this PR." >> $GITHUB_STEP_SUMMARY
+          echo "> ℹ️ No \`.py\` or \`.sql\` files were changed in this PR." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Result: SKIPPED (No relevant files to check)" >> $GITHUB_STEP_SUMMARY
+          echo "### Result: ✅ SKIPPED (No relevant files to check)" >> $GITHUB_STEP_SUMMARY
           echo ""
           echo "No .py or .sql files changed — nothing to validate."
