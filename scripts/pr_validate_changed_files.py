@@ -23,15 +23,6 @@ def parse_file_list(file_string: str) -> list[str]:
 # Check 1 — compileall (Python syntax check)
 # ---------------------------------------------------------------------------
 def check_compileall(py_files: list[str]) -> dict[str, dict]:
-    """Compile each changed Python file to bytecode to catch syntax errors.
-
-    Uses `compileall.compile_file()` which catches:
-    - SyntaxError
-    - IndentationError
-    - TabError
-    - Invalid tokens
-    Does NOT execute any code — completely safe.
-    """
     results = {}
     if not py_files:
         return results
@@ -72,12 +63,6 @@ def check_compileall(py_files: list[str]) -> dict[str, dict]:
 # Check 2 — Airflow DAGBag (DAG integrity)
 # ---------------------------------------------------------------------------
 def check_dagbag(py_files: list[str]) -> dict[str, dict]:
-    """Load changed Python files through Airflow DagBag to validate DAGs.
-
-    Catches: ImportError, ModuleNotFoundError, invalid DAG configuration,
-    broken operators, circular imports, duplicate task_id, cyclic dependencies
-    — anything that fails at DAG load time.
-    """
     results = {}
     if not py_files:
         return results
@@ -147,11 +132,6 @@ def check_dagbag(py_files: list[str]) -> dict[str, dict]:
 # Check 3 — SQLFluff (Hive SQL syntax)
 # ---------------------------------------------------------------------------
 def check_sqlfluff(sql_files: list[str]) -> dict[str, dict]:
-    """Run sqlfluff parse on each changed SQL file (Hive dialect, syntax only).
-
-    Uses 'parse' mode instead of 'lint' to check only SQL syntax errors,
-    not style/formatting rules like indentation or trailing newlines.
-    """
     results = {}
     if not sql_files:
         return results
@@ -199,11 +179,11 @@ def generate_report(
     lines = []
     all_passed = True
 
-    lines.append("## 📋 PR Syntax & DAG Check Report\n")
+    lines.append("## PR Syntax & DAG Check Report\n")
 
     # --- Python: compileall ---
     if py_files:
-        lines.append("### 🐍 Python Files — compileall (Syntax Check)\n")
+        lines.append("### Python Files — compileall (Syntax Check)\n")
         lines.append("| File | Status | Details |")
         lines.append("|:-----|:------:|:--------|")
         for f in py_files:
@@ -216,7 +196,7 @@ def generate_report(
 
     # --- Python: DAGBag ---
     if py_files:
-        lines.append("### 🐍 Python Files — Airflow DAGBag (Integrity)\n")
+        lines.append("### Python Files — Airflow DAGBag (Integrity)\n")
         lines.append("| File | Status | Details |")
         lines.append("|:-----|:------:|:--------|")
         for f in py_files:
@@ -229,7 +209,7 @@ def generate_report(
 
     # --- SQL: SQLFluff ---
     if sql_files:
-        lines.append("### 🗄️ SQL Files — SQLFluff Hive (Syntax)\n")
+        lines.append("### SQL Files — SQLFluff Hive (Syntax)\n")
         lines.append("| File | Status | Details |")
         lines.append("|:-----|:------:|:--------|")
         for f in sql_files:
@@ -242,16 +222,16 @@ def generate_report(
 
     # --- No files case ---
     if not py_files and not sql_files:
-        lines.append("> ℹ️ No `.py` or `.sql` files were changed in this PR.\n")
-        lines.append("### Result: ✅ SKIPPED (No relevant files to check)\n")
+        lines.append("> No `.py` or `.sql` files were changed in this PR.\n")
+        lines.append("### Result: SKIPPED (No relevant files to check)\n")
         return "\n".join(lines), True
 
     # --- Overall result ---
     lines.append("---\n")
     if all_passed:
-        lines.append("### Result: ✅ ALL CHECKS PASSED — Ready to Merge\n")
+        lines.append("### Result: ALL CHECKS PASSED — Ready to Merge\n")
     else:
-        lines.append("### Result: ❌ CHECKS FAILED — Please fix the errors above\n")
+        lines.append("### Result: CHECKS FAILED — Please fix the errors above\n")
 
     return "\n".join(lines), all_passed
 
@@ -314,14 +294,14 @@ def main() -> None:
     if summary_path:
         with open(summary_path, "a") as f:
             f.write(report)
-        print(f"\n  📝 Report written to: {summary_path}")
+        print(f"\n Report written to: {summary_path}")
 
     # Exit with appropriate code
     if all_passed:
-        print("\n  ✅ All checks passed!\n")
+        print("\n  All checks passed!\n")
         sys.exit(0)
     else:
-        print("\n  ❌ One or more checks failed. See report above.\n")
+        print("\n One or more checks failed. See report above.\n")
         sys.exit(1)
 
 
