@@ -110,12 +110,14 @@ def check_dag_structure(py_files: list[str]) -> dict[str, dict]:
 
         issues = []
 
+        # Check for duplicate dag_id in same file
         seen_dag_ids = set()
         for did in dag_ids:
             if did in seen_dag_ids:
                 issues.append(f"Duplicate dag_id: '{did}'")
             seen_dag_ids.add(did)
 
+        # Check for duplicate task_id in same file
         seen_task_ids = set()
         for tid in task_ids:
             if tid in seen_task_ids:
@@ -174,37 +176,109 @@ def _extract_task_id(node: ast.Call) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Check 3: Hive SQL Syntax (SQLFluff)
+# Check 3: Multi-Dialect SQL Syntax (SQLFluff - Hive, Trino, MySQL)
 # ---------------------------------------------------------------------------
-def check_sqlfluff(sql_files: list[str]) -> dict[str, dict]:
-    """Validate SQL syntax against Hive dialect using SQLFluff parse."""
+SQL_DIALECTS = ["hive", "trino", "mysql"]
+
+
+def _extract_sqlfluff_error(output: str) -> str:
+    """Extract clean error message from SQLFluff output, skipping parse tree dumps."""
+    if not output:
+        return "Unknown SQL parsing error"
+
+    lines = output.splitlines()
+    violations = []
+    in_violations = False
+
+    for line in lines:
+        if "parsing violations" in line.lower():
+            in_violations = True
+            continue
+        if in_violations:
+            if line.startswith("WARNING:") or (line.startswith("===") and in_violations):
+                break
+            line_str = line.strip()
+            if line_str and ("Line " in line_str or "PRS" in line_str or "Found unparsable" in line_str):
+                clean_line = " ".join(line_str.split()).replace("|", " ")
+                violations.append(clean_line)
+
+    if violations:
+        return " ; ".join(violations[:2])
+
+    for line in reversed(lines):
+        if "Line " in line or "Found unparsable" in line or "FAIL" in line:
+            return " ".join(line.strip().split()).replace("|", " ")[:200]
+
+    return "SQL syntax error found"
+
+
+def _run_sqlfluff_parse(filepath: str, dialect: str) -> dict:
+    """Run sqlfluff parse for a specific dialect and return result dict."""
+    cmd = ["sqlfluff", "parse", "--dialect", dialect, filepath]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    if result.returncode == 0:
+        return {"status": "PASS", "error": ""}
+    else:
+        raw_output = (result.stdout or result.stderr or "Unknown error").strip()
+        clean_error = _extract_sqlfluff_error(raw_output)
+        return {"status": "FAIL", "error": clean_error}
+
+
+def check_sqlfluff_multi_dialect(sql_files: list[str]) -> dict[str, dict]:
+    """Test each SQL file against Hive, Trino, and MySQL dialects.
+
+    Decision rule:
+    - PASS if the file is valid in at least one dialect
+    - FAIL only if the file is invalid in ALL three dialects
+    """
     results = {}
     if not sql_files:
         return results
 
     print("\n" + "=" * 60)
-    print("CHECK 3: Hive SQL Syntax (SQLFluff)")
+    print("CHECK 3: Multi-Dialect SQL Syntax (Hive, Trino, MySQL)")
     print("=" * 60)
 
     for filepath in sql_files:
-        print(f"Parsing: {filepath}")
-        cmd = ["sqlfluff", "parse", "--dialect", "hive", filepath]
+        print(f"\nValidating: {filepath}")
+        dialect_results = {}
+        passed_dialects = []
 
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        for dialect in SQL_DIALECTS:
+            dr = _run_sqlfluff_parse(filepath, dialect)
+            dialect_results[dialect] = dr
 
-        if result.stdout:
-            print(result.stdout)
-        if result.stderr:
-            print(result.stderr)
+            if dr["status"] == "PASS":
+                passed_dialects.append(dialect.upper())
+                print(f"  - Testing {dialect.upper():8s}: PASS (Syntax valid)")
+            else:
+                print(f"  - Testing {dialect.upper():8s}: FAIL ({dr['error']})")
 
-        if result.returncode == 0:
-            results[filepath] = {"status": "PASS", "details": "No issues found"}
-            print(f"  [PASS] {filepath}")
+        if passed_dialects:
+            matched_str = ", ".join(passed_dialects)
+            print(f"  -> Final Result: [PASS] (Matched {matched_str} SQL)")
+            results[filepath] = {
+                "status": "PASS",
+                "matched": matched_str,
+                "dialect_results": dialect_results,
+                "details": f"Syntax valid - matched {matched_str}",
+            }
         else:
-            error_output = (result.stdout or result.stderr or "Unknown error").strip()
-            short_error = error_output[:200].replace("\n", " ").replace("|", "\\|")
-            results[filepath] = {"status": "FAIL", "details": short_error}
-            print(f"  [FAIL] {filepath} - {short_error}")
+            error_parts = []
+            for d in SQL_DIALECTS:
+                err = dialect_results[d]["error"]
+                error_parts.append(f"{d.upper()}: {err}")
+            combined_error = " | ".join(error_parts)
+            short_error = combined_error[:300]
+
+            print(f"  -> Final Result: [FAIL] (Failed in all 3 dialects)")
+            results[filepath] = {
+                "status": "FAIL",
+                "matched": "NONE",
+                "dialect_results": dialect_results,
+                "details": f"Failed in all dialects - {short_error}",
+            }
 
     return results
 
@@ -215,7 +289,7 @@ def check_sqlfluff(sql_files: list[str]) -> dict[str, dict]:
 def generate_report(
     compileall_results: dict,
     ast_results: dict,
-    sqlfluff_results: dict,
+    sql_results: dict,
     py_files: list[str],
     sql_files: list[str],
 ) -> tuple[str, bool]:
@@ -248,14 +322,41 @@ def generate_report(
         lines.append("")
 
     if sql_files:
-        lines.append("### SQL Files - Syntax Check (SQLFluff Hive)\n")
-        lines.append("| File | Status | Details |")
-        lines.append("|:-----|:------:|:--------|")
+        lines.append("### SQL Files - Multi-Dialect Syntax Check (Hive / Trino / MySQL)\n")
+        lines.append("| File | Result | Hive | Trino | MySQL | Details |")
+        lines.append("|:-----|:------:|:----:|:-----:|:-----:|:--------|")
         for f in sql_files:
-            r = sqlfluff_results.get(f, {"status": "SKIP", "details": "Not checked"})
+            r = sql_results.get(f, {
+                "status": "SKIP",
+                "matched": "-",
+                "dialect_results": {},
+                "details": "Not checked",
+            })
             if r["status"] == "FAIL":
                 all_passed = False
-            lines.append(f"| `{f}` | **{r['status']}** | {r['details']} |")
+
+            dr = r.get("dialect_results", {})
+            hive_st = dr.get("hive", {}).get("status", "-")
+            trino_st = dr.get("trino", {}).get("status", "-")
+            mysql_st = dr.get("mysql", {}).get("status", "-")
+
+            lines.append(
+                f"| `{f}` | **{r['status']}** | {hive_st} | {trino_st} | {mysql_st} | {r['details']} |"
+            )
+
+        failed_sql = [f for f in sql_files if sql_results.get(f, {}).get("status") == "FAIL"]
+        if failed_sql:
+            lines.append("")
+            lines.append("**Failure Details (per dialect):**\n")
+            for f in failed_sql:
+                r = sql_results[f]
+                dr = r.get("dialect_results", {})
+                lines.append(f"**`{f}`**:")
+                for d in SQL_DIALECTS:
+                    err = dr.get(d, {}).get("error", "N/A")
+                    lines.append(f"- {d.upper()}: {err}")
+                lines.append("")
+
         lines.append("")
 
     if not py_files and not sql_files:
@@ -301,7 +402,7 @@ def main() -> None:
     sql_files = parse_file_list(args.sql_files)
 
     print("#" * 60)
-    print("# PR Static Validator")
+    print("# PR Static Validator (Multi-Dialect SQL)")
     print(f"# Python files: {len(py_files)}")
     print(f"# SQL files:    {len(sql_files)}")
     print("#" * 60)
@@ -311,10 +412,10 @@ def main() -> None:
 
     compileall_results = check_compileall(py_files)
     ast_results = check_dag_structure(py_files)
-    sqlfluff_results = check_sqlfluff(sql_files)
+    sql_results = check_sqlfluff_multi_dialect(sql_files)
 
     report, all_passed = generate_report(
-        compileall_results, ast_results, sqlfluff_results, py_files, sql_files
+        compileall_results, ast_results, sql_results, py_files, sql_files
     )
 
     print("\n" + "=" * 60)

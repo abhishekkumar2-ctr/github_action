@@ -1,4 +1,3 @@
 [sqlfluff]
-dialect = hive
 max_line_length = 200
 large_file_skip_byte_limit = 0
